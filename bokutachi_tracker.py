@@ -381,7 +381,7 @@ def _build_html(game, label, total, lamp_list, bp_list, ex_list,
 
     parts.append(f"""<div class="hdr">
 <div class="hdr-row">
-<div class="hdr-left"><h1>Bokutachi Tracker — {_esc(game.upper())}</h1><div class="sub">{label} · {total} plays</div></div>
+<div class="hdr-left"><h1>Bokutachi IR Tracker — {_esc(game.upper())}</h1><div class="sub">{label} · {total} plays</div></div>
 {stats_html}
 </div></div>""")
 
