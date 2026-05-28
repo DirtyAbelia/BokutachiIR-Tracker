@@ -1,5 +1,7 @@
 # Bokutachi IR Tracker
 
+完全に自分のためのツール・DeepSeek V4 Proにて生成されたコード
+
 Bokutachi（BMSスコア管理ツール）のAPIを利用し、1日のランプ・BP・EXスコア更新を一覧表示するCLIツール。
 
 ## インストール
