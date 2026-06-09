@@ -208,7 +208,8 @@ def run(game, user_id, date_str, image_path=None, image_mode=None):
         for e in entries:
             comp = pb_map.get(e["chartID"], {})
             name = comp.get(e.get("scoreID", ""), "")
-            if "Lamp" in name: e["lamp_ok"] = True
+            if "Lamp" in name and e["lamp"] not in ("NO PLAY", "FAILED", "?"):
+                e["lamp_ok"] = True
             if "BP" in name or "bp" in name.lower(): e["bp_ok"] = True
             if "Score" in name: e["ex_ok"] = True
 
