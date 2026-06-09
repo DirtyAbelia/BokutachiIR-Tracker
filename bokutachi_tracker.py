@@ -164,6 +164,9 @@ def run(game, user_id, date_str, image_path=None, image_mode=None):
             bp_ok = False
 
             if is_new and not deltas:
+                lamp_val = sd.get("lamp", "?")
+                if lamp_val not in ("NO PLAY", "FAILED", "?"):
+                    lamp_ok = True
                 if sd.get("optional", {}).get("bp") is not None:
                     bp_ok = True
                 if sd.get("score", 0) > 0:
