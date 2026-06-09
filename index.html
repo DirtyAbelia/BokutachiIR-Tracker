@@ -158,16 +158,19 @@ async function load(){
         const deltas=si.deltas||{};
         const[sk,tl]=tblInfo(ch);
         const lamp=sd.lamp||'?';
-        const lampOk=(deltas.lamp||0)>0&&!['NO PLAY','FAILED','?'].includes(lamp);
-        const exOk=(deltas.score||0)>0;
+        const hasDeltas=Object.keys(deltas).length>0;
+
+        let lampOk=(deltas.lamp||0)>0;
         let bpOk=false;
-        let isNewEx=false;
-        if(isNew&&!Object.keys(deltas).length){
-          if(!['NO PLAY','FAILED','?'].includes(lamp)) lampOk2=true;
+        let exOk=(deltas.score||0)>0;
+
+        if(isNew&&!hasDeltas){
+          if(!['NO PLAY','FAILED','?'].includes(lamp)) lampOk=true;
           if((sd.optional||{}).bp!=null) bpOk=true;
-          if((sd.score||0)>0) isNewEx=true;
+          if((sd.score||0)>0) exOk=true;
         }
-        const lampOk2=lampOk||(isNew&&!Object.keys(deltas).length&&!['NO PLAY','FAILED','?'].includes(lamp));
+        // Still exclude FAILED from lamp
+        if(['NO PLAY','FAILED','?'].includes(lamp)) lampOk=false;
         const ta=s.timeAchieved;
         entries.push({
           title:song.title||cid,artist:song.artist||'',
@@ -176,10 +179,8 @@ async function load(){
           lamp,ex:sd.score||0,pct:sd.percent||0,
           bp:(sd.optional||{}).bp,
           time:ta?new Date(ta).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}):'',
-          lamp_ok:lampOk,bp_ok:bpOk||false,ex_ok:exOk||false,
-          chartID:cid,scoreID:s.scoreID,is_new:isNew,
-          // temp for isNewScore tracking
-          _isNewEx:isNew&&!Object.keys(deltas).length&&(sd.score||0)>0
+          lamp_ok:lampOk,bp_ok:bpOk,ex_ok:exOk,
+          chartID:cid,scoreID:s.scoreID,
         });
       }
       all.push([det.index,det.session?det.session.name:'?',entries]);
@@ -204,9 +205,6 @@ async function load(){
         if(name.includes('Lamp')&&!['NO PLAY','FAILED','?'].includes(e.lamp)) e.lamp_ok=true;
         if(name.includes('BP')||name.toLowerCase().includes('bp')) e.bp_ok=true;
         if(name.includes('Score')&&!name.includes('Lamp')&&!name.includes('BP')) e.ex_ok=true;
-        // isNewScore without deltas: EX implicit
-        if(e._isNewEx) e.ex_ok=true;
-        delete e._isNewEx;
       }
     }
 
