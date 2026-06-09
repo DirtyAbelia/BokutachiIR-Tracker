@@ -95,7 +95,13 @@ python3 bokutachi_tracker.py -u <ユーザーID> --date 2026-05-26 --image all.p
 - セッションAPIの `deltas` + `isNewScore` + PBの `composedFrom` で改善を正確に検出
 - キャッシュ不要、前日比較不要
 
-## 画像出力オプション
+## Webツール
+
+`index.html` をブラウザで開くだけ。サーバー不要。
+
+- ユーザー名 or ID を入力 → Load
+- タブ切替: All / Sessions / Lamp / BP / EX
+- 日付選択可能
 
 | オプション | 内容 |
 |------------|------|
