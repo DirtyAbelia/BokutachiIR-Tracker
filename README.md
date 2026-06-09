@@ -1,14 +1,13 @@
 # Bokutachi IR Tracker
 
-※注意  
-完全に自分のためのツール・DeepSeek V4 Proにて生成されたコード
+> **注意**: このツールは完全に個人用であり、DeepSeek V4 Pro によって生成されたコードです。
 
-Bokutachi（BMSスコア管理ツール）のAPIを利用し、1日のランプ・BP・EXスコア更新を一覧表示するCLIツール。
+Bokutachi（BMSスコア管理ツール）のAPIを利用し、1日のランプ・BP・EXスコア更新を一覧表示するCLI/Webツール。
 
 ## インストール
 
 ```bash
-git clone https://github.com/light1192/BokutachiIR-Tracker.git
+git clone https://github.com/DirtyAbelia/BokutachiIR-Tracker.git
 cd BokutachiIR-Tracker
 python3 -m venv .venv
 source .venv/bin/activate
