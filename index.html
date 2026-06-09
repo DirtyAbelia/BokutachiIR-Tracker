@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bokutachi IR Tracker</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,"Helvetica Neue",sans-serif;padding:24px;max-width:860px;margin:0 auto}
+.hdr{background:linear-gradient(135deg,#161b22,#0d1117);border:1px solid #30363d;border-radius:10px;padding:14px 22px;margin-bottom:16px}
+.hdr-row{display:flex;align-items:center;justify-content:space-between}
+.hdr-left h1{font-size:17px;color:#58a6ff;line-height:1.3}
+.hdr-left .sub{font-size:11px;color:#8b949e;line-height:1.3}
+.stats{display:flex;gap:8px}
+.stat{background:#161b22;border:1px solid #30363d;border-radius:7px;padding:6px 12px;text-align:center;min-width:54px}
+.stat .n{font-size:20px;font-weight:700;line-height:1.1}
+.stat .l{font-size:9px;color:#8b949e;line-height:1.1;text-transform:uppercase;letter-spacing:.5px}
+.s-lamp .n{color:#f0883e}
+.s-bp .n{color:#3fb950}
+.s-ex .n{color:#58a6ff}
+.sec{font-size:13px;font-weight:600;color:#f0f6fc;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #30363d}
+.ses-t{font-size:12px;font-weight:600;color:#8b949e;margin:10px 0 4px}
+.ses-b{font-size:10px;color:#484f58;margin-left:6px}
+table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
+col.c1{width:260px}col.c2{width:130px}col.c3{width:90px}col.c4{width:56px}
+td{padding:2px 6px;border-bottom:1px solid #161b22;vertical-align:top;white-space:nowrap}
+.t-title{color:#f0f6fc;font-weight:500;overflow:hidden;text-overflow:ellipsis}
+.t-artist{color:#8b949e;font-size:10px;overflow:hidden;text-overflow:ellipsis}
+.t-tbl{color:#58a6ff;font-size:10px}
+.t-badges{text-align:right}
+.t-det{color:#6e7681;font-size:10px;padding-top:0}
+.b-lamp{color:#f0883e;font-weight:700;font-size:10px}
+.b-bp{color:#3fb950;font-weight:700;font-size:10px}
+.b-ex{color:#58a6ff;font-weight:700;font-size:10px}
+.lgrp{font-size:11px;font-weight:600;margin:8px 0 3px;padding-left:6px;border-left:2px solid}
+input,button,select{background:#161b22;border:1px solid #30363d;color:#f0f6fc;padding:6px 10px;border-radius:6px;font-size:13px}
+input{width:160px}
+button{background:#238636;border-color:#238636;cursor:pointer;font-weight:600}
+button:hover{background:#2ea043}
+.controls{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.tabs{display:flex;gap:4px;margin:12px 0}
+.tabs button{background:#21262d;border-color:#30363d;font-size:11px;padding:4px 10px}
+.tabs button.active,.tabs button:hover{background:#30363d}
+.loading{color:#8b949e;font-style:italic}
+.err{color:#f85149}
+</style>
+</head>
+<body>
+<div class="hdr">
+<div class="hdr-row">
+<div class="hdr-left"><h1>Bokutachi IR Tracker</h1><div class="sub" id="hdrinfo"></div></div>
+<div class="stats" id="statcards"></div>
+</div></div>
+
+<div class="controls">
+  <input id="userinp" placeholder="username or ID">
+  <input type="date" id="dateinp">
+  <select id="gamesel"><option value="bms-7k">BMS-7K</option><option value="bms-14k">BMS-14K</option></select>
+  <button onclick="load()">Load</button>
+  <span class="loading" id="status"></span>
+</div>
+
+<div class="tabs">
+  <button class="active" onclick="showTab('all')">All</button>
+  <button onclick="showTab('sessions')">Sessions</button>
+  <button onclick="showTab('lamp')">Lamp</button>
+  <button onclick="showTab('bp')">BP</button>
+  <button onclick="showTab('ex')">EX</button>
+</div>
+<div id="content"></div>
+
+<script>
+const API='https://boku.tachi.ac/api/v1';
+const LAMP_ORDER=['NO PLAY','FAILED','ASSIST CLEAR','EASY CLEAR','CLEAR','HARD CLEAR','EX HARD CLEAR','FULL COMBO'];
+const LAMP_DISPLAY=['FULL COMBO','EX HARD CLEAR','HARD CLEAR','CLEAR','EASY CLEAR','ASSIST CLEAR','FAILED'];
+const LAMP_COLOR={'FULL COMBO':'#ff79c6','EX HARD CLEAR':'#f0c040','HARD CLEAR':'#f0f6fc','CLEAR':'#58a6ff','EASY CLEAR':'#7ee83e','ASSIST CLEAR':'#c084fc','FAILED':'#f85149'};
+const TBL_PRIO={st:0,sl:1,'★':2,'重発狂':3};
+let allData=null,curTab='all';
+
+document.getElementById('dateinp').value=new Date().toISOString().slice(0,10);
+
+function li(l){return LAMP_ORDER.indexOf(l)}
+
+function tblInfo(chart){
+  const folders=(chart.data||{}).tableFolders||{};
+  const sgl=chart.data&&chart.data.sglEC;
+  let bp=99,bl=0,labels=[];
+  for(const[k,v]of Object.entries(folders)){
+    const lv=parseInt(v)||0;
+    const p=TBL_PRIO[k]??90;
+    if(p<bp||(p===bp&&lv>bl)){bp=p;bl=lv}
+    labels.push(k.replace('重発狂','重')+v);
+  }
+  labels.sort((a,b)=>{
+    const pa=TBL_PRIO[a.startsWith('重')?'重発狂':a[0]=='s'&&a[1]=='t'?'st':a[0]=='s'?'sl':a[0]=='★'?'★':null]??99;
+    const pb=TBL_PRIO[b.startsWith('重')?'重発狂':b[0]=='s'&&b[1]=='t'?'st':b[0]=='s'?'sl':b[0]=='★'?'★':null]??99;
+    return pa-pb||a.localeCompare(b);
+  });
+  return [(bp,-bl,-(sgl||0)),labels.join(' ')||(sgl!=null?`▼${sgl.toFixed(2)}`:'')];
+}
+
+async function api(url){
+  const r=await fetch(url);
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  const d=await r.json();
+  if(!d.success)throw new Error(d.description);
+  return d.body;
+}
+
+function dateWindow(ds){
+  const d=ds?new Date(ds+'T00:00:00'):new Date();
+  d.setHours(0,0,0,0);
+  return [d.getTime(),d.getTime()+86400000];
+}
+
+async function load(){
+  const status=document.getElementById('status');
+  const inp=document.getElementById('userinp').value.trim();
+  const dateStr=document.getElementById('dateinp').value;
+  const game=document.getElementById('gamesel').value;
+  if(!inp){status.textContent='Enter username or ID';return}
+  status.textContent='Loading...';
+  document.getElementById('content').innerHTML='';
+  document.getElementById('statcards').innerHTML='';
+  document.getElementById('hdrinfo').textContent='';
+  try{
+    let uid=parseInt(inp);
+    if(isNaN(uid)){
+      const users=await api(`${API}/users?search=${encodeURIComponent(inp)}`);
+      const w=inp.toLowerCase();
+      const u=users.find(u=>u.username.toLowerCase()===w||u.usernameLowercase===w);
+      if(!u){status.textContent='Not found';return}
+      uid=u.id;
+    }
+    const label=dateStr||new Date().toISOString().slice(0,10);
+    const[sm,em]=dateWindow(dateStr||null);
+
+    // Sessions list
+    const sessList=await api(`${API}/users/${uid}/games/${game}/sessions/recent`);
+    const target=sessList.filter(s=>s.timeStarted>=sm&&s.timeStarted<em);
+    if(!target.length){status.textContent=`No sessions on ${label}`;return}
+
+    // Session details + PBs
+    const all=[];
+    const allCids=new Set();
+    for(const ses of target){
+      const det=await api(`${API}/sessions/${ses.sessionID}`);
+      const charts={}; for(const c of det.charts) charts[c.chartID]=c;
+      const sinfo={}; for(const s of det.scoreInfo) sinfo[s.scoreID]=s;
+      const entries=[];
+      for(const s of det.scores){
+        const sd=s.scoreData||{};
+        const cid=s.chartID; allCids.add(cid);
+        const ch=charts[cid]||{};
+        const song=ch.song||{};
+        const si=sinfo[s.scoreID]||{};
+        const isNew=si.isNewScore||false;
+        const deltas=si.deltas||{};
+        const[sk,tl]=tblInfo(ch);
+        const lamp=sd.lamp||'?';
+        const lampOk=(deltas.lamp||0)>0&&!['NO PLAY','FAILED','?'].includes(lamp);
+        const exOk=(deltas.score||0)>0;
+        let bpOk=false;
+        let isNewEx=false;
+        if(isNew&&!Object.keys(deltas).length){
+          if(!['NO PLAY','FAILED','?'].includes(lamp)) lampOk2=true;
+          if((sd.optional||{}).bp!=null) bpOk=true;
+          if((sd.score||0)>0) isNewEx=true;
+        }
+        const lampOk2=lampOk||(isNew&&!Object.keys(deltas).length&&!['NO PLAY','FAILED','?'].includes(lamp));
+        const ta=s.timeAchieved;
+        entries.push({
+          title:song.title||cid,artist:song.artist||'',
+          notecount:(ch.data||{}).notecount||0,
+          table_label:tl,sort_key:sk,
+          lamp,ex:sd.score||0,pct:sd.percent||0,
+          bp:(sd.optional||{}).bp,
+          time:ta?new Date(ta).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}):'',
+          lamp_ok:lampOk,bp_ok:bpOk||false,ex_ok:exOk||false,
+          chartID:cid,scoreID:s.scoreID,is_new:isNew,
+          // temp for isNewScore tracking
+          _isNewEx:isNew&&!Object.keys(deltas).length&&(sd.score||0)>0
+        });
+      }
+      all.push([det.index,det.session?det.session.name:'?',entries]);
+    }
+
+    // PBs for composedFrom
+    let pbMap={};
+    try{
+      const pbs=await api(`${API}/users/${uid}/games/${game}/pbs/all`);
+      for(const pb of pbs.pbs||[]){
+        const comp={};
+        for(const c of pb.composedFrom||[]) comp[c.scoreID]=c.name||'';
+        pbMap[pb.chartID]=comp;
+      }
+    }catch(e){}
+
+    // Enhance with composedFrom + isNewScore
+    for(const[, ,entries] of all){
+      for(const e of entries){
+        const comp=pbMap[e.chartID]||{};
+        const name=comp[e.scoreID]||'';
+        if(name.includes('Lamp')&&!['NO PLAY','FAILED','?'].includes(e.lamp)) e.lamp_ok=true;
+        if(name.includes('BP')||name.toLowerCase().includes('bp')) e.bp_ok=true;
+        if(name.includes('Score')&&!name.includes('Lamp')&&!name.includes('BP')) e.ex_ok=true;
+        // isNewScore without deltas: EX implicit
+        if(e._isNewEx) e.ex_ok=true;
+        delete e._isNewEx;
+      }
+    }
+
+    // Dedup: best per chart per metric
+    function best(list,keyFn){
+      const m={};
+      for(const e of list){
+        const cid=e.chartID;
+        if(!m[cid]||keyFn(e)>keyFn(m[cid])) m[cid]=e;
+      }
+      return Object.values(m).sort((a,b)=>a.sort_key>b.sort_key?1:-1);
+    }
+    const lampList=best([].concat(...all.map(a=>a[2].filter(e=>e.lamp_ok))),e=>LAMP_ORDER.indexOf(e.lamp));
+    const bpList=best([].concat(...all.map(a=>a[2].filter(e=>e.bp_ok))),e=>-(e.bp||99999));
+    const exList=best([].concat(...all.map(a=>a[2].filter(e=>e.ex_ok))),e=>e.ex);
+
+    allData={game,label,total:[].concat(...all.map(a=>a[2])).length,lampList,bpList,exList,all};
+    render();
+    status.textContent='Done';
+  }catch(e){status.textContent=e.message;console.error(e)}
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function row(title,artist,tbl,badges){
+  const t=`<td class="t-title">${esc(title)}</td>`;
+  const a=artist?`<td class="t-artist">${esc(artist)}</td>`:'<td></td>';
+  const tb=tbl?`<td class="t-tbl">${esc(tbl)}</td>`:'<td></td>';
+  const bd=badges?`<td class="t-badges">${badges}</td>`:'<td></td>';
+  return `<tr>${t}${a}${tb}${bd}</tr>`;
+}
+
+function render(){
+  const d=allData;
+  if(!d)return;
+
+  // Header
+  document.getElementById('hdrinfo').textContent=`${d.label} · ${d.total} plays`;
+  const stat=(n,label,cls)=>`<div class="stat ${cls}"><div class="n">${n}</div><div class="l">${label}</div></div>`;
+  let stats='';
+  if(curTab==='all'||curTab==='sessions'||curTab==='lamp') stats+=stat(d.lampList.length,'Lamp','s-lamp');
+  if(curTab==='all'||curTab==='sessions'||curTab==='bp') stats+=stat(d.bpList.length,'BP','s-bp');
+  if(curTab==='all'||curTab==='sessions'||curTab==='ex') stats+=stat(d.exList.length,'EX','s-ex');
+  document.getElementById('statcards').innerHTML=stats;
+
+  let html='';
+  const showSessions=curTab==='all'||curTab==='sessions';
+  const showLamp=curTab==='all'||curTab==='lamp';
+  const showBp=curTab==='all'||curTab==='bp';
+  const showEx=curTab==='all'||curTab==='ex';
+
+  // Sessions
+  if(showSessions&&d.all.length){
+    html+='<div class="sec">Sessions</div>';
+    for(const[sindex,sname,entries]of d.all.sort((a,b)=>b[0]-a[0])){
+      const ln=entries.filter(e=>e.lamp_ok).length;
+      const bn=entries.filter(e=>e.bp_ok).length;
+      const en=entries.filter(e=>e.ex_ok).length;
+      const bs=[];
+      if(ln)bs.push(`<span class="b-lamp">Lamp:${ln}</span>`);
+      if(bn)bs.push(`<span class="b-bp">BP:${bn}</span>`);
+      if(en)bs.push(`<span class="b-ex">EX:${en}</span>`);
+      html+=`<div class="ses-t">Session #${sindex}: ${esc(sname)}<span class="ses-b">${bs.join(' ')}</span></div>`;
+      let rows='';
+      for(const e of entries){
+        const ib=[];
+        if(e.lamp_ok)ib.push('<span class="b-lamp">L</span>');
+        if(e.bp_ok)ib.push('<span class="b-bp">B</span>');
+        if(e.ex_ok)ib.push('<span class="b-ex">E</span>');
+        const tbl=e.table_label?`[${e.table_label}]`:'';
+        rows+=row(e.title,e.artist,tbl,ib.join(''));
+        let det=`Lamp: ${esc(e.lamp)}, EX: ${e.ex} (${e.pct.toFixed(2)}%)`;
+        if(e.bp!=null)det+=`, BP: ${e.bp}`;
+        rows+=`<tr><td colspan="4" class="t-det">${det}</td></tr>`;
+      }
+      html+=`<table><colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>${rows}</table>`;
+    }
+  }
+
+  // Lamp updates
+  if(showLamp&&d.lampList.length){
+    html+=`<div class="sec">Lamp Updates (${d.lampList.length} charts)</div>`;
+    const byLamp={};
+    for(const e of d.lampList){
+      if(!byLamp[e.lamp])byLamp[e.lamp]=[];
+      byLamp[e.lamp].push(e);
+    }
+    for(const lv of LAMP_DISPLAY){
+      if(!byLamp[lv])continue;
+      const color=LAMP_COLOR[lv]||'#8b949e';
+      const sty=lv==='FULL COMBO'
+        ?`background:linear-gradient(90deg,#ff79c6,#bd93f9,#8be9fd,#50fa7b,#f1fa8c,#ffb86c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;border-left:2px solid #ff79c6`
+        :`color:${color};border-left-color:${color}`;
+      html+=`<div class="lgrp" style="${sty}">${esc(lv)}</div>`;
+      let rows='';
+      for(const e of byLamp[lv].sort((a,b)=>a.sort_key>b.sort_key?1:-1)){
+        rows+=row(e.title,e.artist,e.table_label?`[${e.table_label}]`:'','');
+        rows+=`<tr><td colspan="4" class="t-det">Lamp: ${esc(e.lamp)}, EX: ${e.ex} (${e.pct.toFixed(2)}%)</td></tr>`;
+      }
+      html+=`<table><colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>${rows}</table>`;
+    }
+  }
+
+  // BP
+  if(showBp&&d.bpList.length){
+    html+=`<div class="sec">BP Updates (${d.bpList.length} charts)</div>`;
+    let rows='';
+    for(const e of d.bpList){
+      rows+=row(e.title,e.artist,e.table_label?`[${e.table_label}]`:'','');
+      rows+=`<tr><td colspan="4" class="t-det">BP: ${e.bp}</td></tr>`;
+    }
+    html+=`<table><colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>${rows}</table>`;
+  }
+
+  // EX
+  if(showEx&&d.exList.length){
+    html+=`<div class="sec">EX Updates (${d.exList.length} charts)</div>`;
+    let rows='';
+    for(const e of d.exList){
+      rows+=row(e.title,e.artist,e.table_label?`[${e.table_label}]`:'','');
+      rows+=`<tr><td colspan="4" class="t-det">EX: ${e.ex} (${e.pct.toFixed(2)}%)</td></tr>`;
+    }
+    html+=`<table><colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>${rows}</table>`;
+  }
+
+  document.getElementById('content').innerHTML=html||'<div class="sec">No data</div>';
+}
+
+function showTab(tab){
+  curTab=tab;
+  document.querySelectorAll('.tabs button').forEach((b,i)=>{
+    b.className=['all','sessions','lamp','bp','ex'][i]===tab?'active':'';
+  });
+  render();
+}
+</script>
+</body>
+</html>
