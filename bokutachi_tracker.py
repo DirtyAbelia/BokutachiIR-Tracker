@@ -159,7 +159,8 @@ def run(game, user_id, date_str, image_path=None, image_mode=None):
             deltas = si.get("deltas", {})
             sort_key, table_label = _table_info(chart)
 
-            lamp_ok = deltas.get("lamp", 0) > 0
+            lamp_ok = deltas.get("lamp", 0) > 0 and sd.get("lamp", "?") not in (
+                "NO PLAY", "FAILED", "?")
             ex_ok = deltas.get("score", 0) > 0
             bp_ok = False
 
